@@ -5,7 +5,7 @@ FIND_MAX_LENGTH = False  # Set true for looped exploration of max feasible lengt
 
 STARTING_MAX = 10  # Starting max feasible length
 
-PROBLEM = 9
+PROBLEM = 2
 data = get_problem(PROBLEM)
 
 grid = data.grid
@@ -114,15 +114,6 @@ while True:
                 paths_by_num.setdefault(v, []).append(comp)
 
         return paths_by_num
-
-    def count_degree1_nodes(path):
-        """Counts number of nodes with 1 orthogonal neighbour on a given grid path"""
-        path_set = set(path)
-        return sum(
-            1
-            for s in path_set
-            if sum((nb in path_set) for nb in get_orth_neighbours(s)) == 1
-        )
 
     def Callback(model, where):
         if where == GRB.Callback.MIPSOL:
