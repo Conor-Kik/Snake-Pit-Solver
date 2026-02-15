@@ -1,11 +1,11 @@
 from gurobipy import *
 from problems import get_problem
 
-FIND_MAX_LENGTH =False #Set true for looped exploration of max feasible length
+FIND_MAX_LENGTH = False  # Set true for looped exploration of max feasible length
 
-STARTING_MAX = 10 # Starting max feasible length
+STARTING_MAX = 10  # Starting max feasible length
 
-PROBLEM = 2
+PROBLEM = 9
 data = get_problem(PROBLEM)
 
 grid = data.grid
@@ -35,6 +35,7 @@ def get_orth_neighbours(pos):
         if 0 <= ni < rows and 0 <= nj < cols
     ]
 
+
 n = len(grid)
 N = range(n)
 S = [(i, j) for i in N for j in N]
@@ -43,7 +44,7 @@ while True:
     T = range(2, max_length + 1)
     print(f"Trying with max length of {max_length}")
     m = Model()
-    X = {(s, t) : m.addVar(vtype=GRB.BINARY) for s in S for t in T}
+    X = {(s, t): m.addVar(vtype=GRB.BINARY) for s in S for t in T}
 
     # Set seeds and 1 number per square
     for s in S:
@@ -53,7 +54,7 @@ while True:
         m.addConstr(quicksum(X[s, t] for t in T) == 1)
 
     for s in S:
-        #Upper bound for orthogonal neighbours
+        # Upper bound for orthogonal neighbours
         deg = len(get_orth_neighbours(s))
 
         for t in T:
@@ -66,16 +67,16 @@ while True:
                 b = 2
             else:
                 b = 1
-            
-            #Force blocked squares to have two neighbours
+
+            # Force blocked squares to have two neighbours
             m.addConstr(
-                    b*X[s, t] <= quicksum(X[ss, t] for ss in get_orth_neighbours(s))
-                )
-            
-            #Force circles to have one neighbour
+                b * X[s, t] <= quicksum(X[ss, t] for ss in get_orth_neighbours(s))
+            )
+
+            # Force circles to have one neighbour
             m.addConstr(
                 quicksum(X[ss, t] for ss in get_orth_neighbours(s))
-                <= k + (deg-k)* (1 - X[s, t])
+                <= k + (deg - k) * (1 - X[s, t])
             )
 
     def get_paths_by_number(XV):
@@ -114,7 +115,6 @@ while True:
 
         return paths_by_num
 
-
     def count_degree1_nodes(path):
         """Counts number of nodes with 1 orthogonal neighbour on a given grid path"""
         path_set = set(path)
@@ -124,10 +124,8 @@ while True:
             if sum((nb in path_set) for nb in get_orth_neighbours(s)) == 1
         )
 
-
     def Callback(model, where):
         if where == GRB.Callback.MIPSOL:
-            global lazy_count
             XV = model.cbGetSolution(X)
             s_map = {}
             for i in N:
@@ -142,22 +140,32 @@ while True:
                 if t not in paths:
                     continue
                 for path in paths[t]:
-                    #Cut if path doesn't have two ends
-                    ends = count_degree1_nodes(path)
+                    # Cut if path doesn't have two ends
+                    ends = sum(
+                        1
+                        for s in path
+                        if sum((nb in path) for nb in get_orth_neighbours(s)) == 1
+                    )
                     if ends <= 1:
                         model.cbLazy(quicksum(X[s, t] for s in path) <= len(path) - 1)
                     if len(path) == t:
                         continue
-                    #Cut if path is too long
+                    # Cut if path is too long
                     if len(path) > t:
                         model.cbLazy(quicksum(X[ss, t] for ss in path) <= len(path) - 1)
-                    
-                    #Force path to grow by one if too short
+
+                    # Force path to grow by one if too short
                     if len(path) < t:
-                        model.cbLazy(quicksum(X[sss, t] for ss in path 
-                                            for sss in get_orth_neighbours(ss) if sss not in path) 
-                                    >= 1 - len(path) +quicksum(X[ss, t] for ss in path))
-                        
+                        model.cbLazy(
+                            quicksum(
+                                X[sss, t]
+                                for ss in path
+                                for sss in get_orth_neighbours(ss)
+                                if sss not in path
+                            )
+                            >= 1 - len(path) + quicksum(X[ss, t] for ss in path)
+                        )
+
     m.Params.LazyConstraints = 1
     m.optimize(Callback)
     if m.Status == GRB.OPTIMAL:
@@ -174,10 +182,13 @@ def draw_faint_x(ax, x, y, size=0.20, lw=1.2, alpha=0.35):
     """
     cx, cy = x + 0.5, y + 0.5
     s = size
-    ax.plot([cx - s, cx + s], [cy - s, cy + s],
-            color="black", linewidth=lw, alpha=alpha)
-    ax.plot([cx - s, cx + s], [cy + s, cy - s],
-            color="black", linewidth=lw, alpha=alpha)
+    ax.plot(
+        [cx - s, cx + s], [cy - s, cy + s], color="black", linewidth=lw, alpha=alpha
+    )
+    ax.plot(
+        [cx - s, cx + s], [cy + s, cy - s], color="black", linewidth=lw, alpha=alpha
+    )
+
 
 def plot_board_matplotlib(
     m, X, grid, circle_squares, blocked_squares=None, T=None, title=None
@@ -251,7 +262,9 @@ def plot_board_matplotlib(
             # Base colored square (by digit)
             ax.add_patch(
                 patches.Rectangle(
-                    (x, y), 1, 1,
+                    (x, y),
+                    1,
+                    1,
                     facecolor=digit_color[d],
                     edgecolor="none",
                     alpha=0.30,
@@ -297,10 +310,10 @@ def plot_board_matplotlib(
                 fontweight="bold",
                 color="black",
             )
-    
+
     if title:
         ax.set_title(title)
     plt.show()
 
-plot_board_matplotlib(m, X, grid, circle_squares, blocked_squares=x_squares, T=T)
 
+plot_board_matplotlib(m, X, grid, circle_squares, blocked_squares=x_squares, T=T)

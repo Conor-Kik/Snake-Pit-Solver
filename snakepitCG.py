@@ -2,9 +2,9 @@ from gurobipy import *
 from problems import get_problem
 import time
 
-FIND_MAX_LENGTH = False #Set true for looped exploration of max feasible length
+FIND_MAX_LENGTH = False  # Set true for looped exploration of max feasible length
 
-STARTING_MAX = 10 # Starting max feasible length
+STARTING_MAX = 10  # Starting max feasible length
 
 PROBLEM = 9
 data = get_problem(PROBLEM)
@@ -20,6 +20,7 @@ if FIND_MAX_LENGTH:
 else:
     max_length = max(data.T)
 
+
 def get_orth_neighbours(pos):
     i, j = pos
     rows, cols = len(grid), len(grid[0])
@@ -34,10 +35,12 @@ def get_orth_neighbours(pos):
         if 0 <= ni < rows and 0 <= nj < cols
     }
 
+
 n = len(grid)
 N = range(n)
 S = [(i, j) for i in N for j in N]
-            
+
+
 def plot_board_matplotlib(
     sol, grid, circle_squares, blocked_squares=None, T=None, title=None
 ):
@@ -100,7 +103,9 @@ def plot_board_matplotlib(
             # Base colored square (by digit)
             ax.add_patch(
                 patches.Rectangle(
-                    (x, y), 1, 1,
+                    (x, y),
+                    1,
+                    1,
                     facecolor=digit_color[d],
                     edgecolor="none",
                     alpha=0.30,
@@ -147,10 +152,10 @@ def plot_board_matplotlib(
                 color="black",
             )
     plt.show()
-    
 
     return fig, ax
-          
+
+
 start_t = time.time()
 
 # CG approach
@@ -167,10 +172,17 @@ while True:
 
     for t in T:
         for c in Seed[t]:
-            if c[0] not in x_squares and c[-1] not in x_squares and \
-               all(grid[s[0]][s[1]] in (None, t) for s in c) and \
-               not any(grid[ss[0]][ss[1]] == t for s in c
-                       for ss in get_orth_neighbours(s) if ss not in c):
+            if (
+                c[0] not in x_squares
+                and c[-1] not in x_squares
+                and all(grid[s[0]][s[1]] in (None, t) for s in c)
+                and not any(
+                    grid[ss[0]][ss[1]] == t
+                    for s in c
+                    for ss in get_orth_neighbours(s)
+                    if ss not in c
+                )
+            ):
                 Cols.add(c)
 
         print(t, len(Seed[t]), len(Cols))
@@ -214,10 +226,7 @@ while True:
         max_length += 1
         continue
 
-    Cover = {
-        s: m.addConstr(quicksum(Z[p] for p in Z if s in p) == 1)
-        for s in S
-    }
+    Cover = {s: m.addConstr(quicksum(Z[p] for p in Z if s in p) == 1) for s in S}
 
     def Callback(model, where):
         if where == GRB.Callback.MIPSOL:
@@ -237,8 +246,16 @@ while True:
                     for ss in get_orth_neighbours(s):
                         if ss > s and ss not in p and sol.get(ss) == t:
                             model.cbLazy(
-                                quicksum(Z[pp] for pp in Z if len(pp) == t and s in pp and ss not in pp) +
-                                quicksum(Z[pp] for pp in Z if len(pp) == t and ss in pp and s not in pp)
+                                quicksum(
+                                    Z[pp]
+                                    for pp in Z
+                                    if len(pp) == t and s in pp and ss not in pp
+                                )
+                                + quicksum(
+                                    Z[pp]
+                                    for pp in Z
+                                    if len(pp) == t and ss in pp and s not in pp
+                                )
                                 <= 1
                             )
 
@@ -257,9 +274,9 @@ print(f"Total time : {end_t-start_t:.2f}")
 if m.SolCount > 0:
     sol = {}
     for p in Z:
-        if round(Z[p].x)==1:
+        if round(Z[p].x) == 1:
             for s in p:
                 sol[s] = len(p)
-    plot_board_matplotlib(sol, grid, circle_squares, blocked_squares=x_squares, T=T, title="Solution")
-
-
+    plot_board_matplotlib(
+        sol, grid, circle_squares, blocked_squares=x_squares, T=T, title="Solution"
+    )

@@ -2,11 +2,11 @@ from gurobipy import *
 from problems import get_problem
 
 
-FIND_MAX_LENGTH = False #Set true for looped exploration of max feasible length
+FIND_MAX_LENGTH = False  # Set true for looped exploration of max feasible length
 
-STARTING_MAX = 10 # Starting max feasible length
+STARTING_MAX = 10  # Starting max feasible length
 
-PROBLEM = 2
+PROBLEM = 4
 data = get_problem(PROBLEM)
 
 grid = data.grid
@@ -19,6 +19,7 @@ if FIND_MAX_LENGTH:
     max_length = max(max_length, STARTING_MAX)
 else:
     max_length = max(data.T)
+
 
 def get_orth_neighbours(pos):
     i, j = pos
@@ -34,19 +35,18 @@ def get_orth_neighbours(pos):
         if 0 <= ni < rows and 0 <= nj < cols
     ]
 
+
 n = len(grid)
 N = range(n)
 S = [(i, j) for i in N for j in N]
 
 
-A = [ (pos, nbr)
-        for pos in S
-        for nbr in get_orth_neighbours(pos) ]
+A = [(pos, nbr) for pos in S for nbr in get_orth_neighbours(pos)]
 
 while True:
     T = range(2, max_length + 1)
     print(f"Trying with max length of {max_length}")
-    bigM = max(T)-1
+    bigM = max(T) - 1
     m = Model()
 
     # Flow on directed orthogonal arcs, indexed by time/value t
@@ -66,18 +66,18 @@ while True:
     # Head/tail exclusivity + MTZ bounds tied to head/tail choice
     # ------------------------------------------------------------------
     for s in S:
-        m.addConstr(quicksum(H[s,t] for t in T) + quicksum(E[s,t] for t in T) <= 1)
+        m.addConstr(quicksum(H[s, t] for t in T) + quicksum(E[s, t] for t in T) <= 1)
 
         for t in T:
             if t >= 2:
                 # tail of length t -> label at least (t-1)
-                m.addConstr(M[s] >= (t-1) * E[s,t])
+                m.addConstr(M[s] >= (t - 1) * E[s, t])
 
                 # tail of length t -> label at most (t-1); otherwise free up to bigM
-                m.addConstr(M[s] <= (t-1) + (bigM-1) * (1 - E[s,t]))
+                m.addConstr(M[s] <= (t - 1) + (bigM - 1) * (1 - E[s, t]))
 
                 # head -> M[s] = 0
-                m.addConstr(M[s] <= bigM * (1 - H[s,t]))
+                m.addConstr(M[s] <= bigM * (1 - H[s, t]))
 
     # ------------------------------------------------------------------
     # Force 2-cycles for t = 2 (edge pairing)
@@ -85,21 +85,14 @@ while True:
     for s in S:
         for neigh in get_orth_neighbours(s):
             # A t=2 arc must be paired in the opposite direction
-            m.addConstr(
-                F[(s, neigh), 2] == F[(neigh, s), 2]
-            )
+            m.addConstr(F[(s, neigh), 2] == F[(neigh, s), 2])
 
     # ------------------------------------------------------------------
     # X-squares cannot be heads or tails and 2's can't be on X squares
     # ------------------------------------------------------------------
     for s in x_squares:
-        m.addConstr(
-            quicksum(H[s, t] for t in T) +
-            quicksum(E[s, t] for t in T)
-            == 0
-        )
+        m.addConstr(quicksum(H[s, t] for t in T) + quicksum(E[s, t] for t in T) == 0)
         m.addConstr(X[s, 2] == 0)
-
 
     # ------------------------------------------------------------------
     # Circle squares: endpoint for t >= 3 unless used by t = 2
@@ -107,8 +100,10 @@ while True:
     for c in circle_squares:
         m.addConstr(
             quicksum(H[c, t] + E[c, t] for t in T if t >= 3)
-            ==
-            1 - X[c,2] #- quicksum(F[(c, neigh), 2] for neigh in get_orth_neighbours(c))
+            == 1
+            - X[
+                c, 2
+            ]  # - quicksum(F[(c, neigh), 2] for neigh in get_orth_neighbours(c))
         )
     # ------------------------------------------------------------------
     # 6) Degree caps across ALL t + coverage constraint
@@ -116,21 +111,15 @@ while True:
     for s in S:
         # At most one outgoing arc across all t
         m.addConstr(
-            quicksum(F[(s, neigh), t]
-                    for neigh in get_orth_neighbours(s)
-                    for t in T)
+            quicksum(F[(s, neigh), t] for neigh in get_orth_neighbours(s) for t in T)
             <= 1
         )
 
         # At most one incoming arc across all t
         m.addConstr(
-            quicksum(F[(neigh, s), t]
-                    for neigh in get_orth_neighbours(s)
-                    for t in T)
+            quicksum(F[(neigh, s), t] for neigh in get_orth_neighbours(s) for t in T)
             <= 1
         )
-
-
 
     # ------------------------------------------------------------------
     # Define X[s,t] from head/tail/incidence of flow
@@ -140,22 +129,18 @@ while True:
 
         for t in T:
             m.addConstr(
-                2*X[s, t] >=
-                quicksum(F[(s, neigh), t] + F[(neigh, s), t] for neigh in get_orth_neighbours(s))
+                2 * X[s, t]
+                >= quicksum(
+                    F[(s, neigh), t] + F[(neigh, s), t]
+                    for neigh in get_orth_neighbours(s)
+                )
             )
-
 
             m.addConstr(
-                X[s, t] <=
-                        quicksum(F[(neigh, s), t]
-                    for neigh in get_orth_neighbours(s))
-            +
-            quicksum(F[(s, neigh), t]
-                    for neigh in get_orth_neighbours(s))
+                X[s, t]
+                <= quicksum(F[(neigh, s), t] for neigh in get_orth_neighbours(s))
+                + quicksum(F[(s, neigh), t] for neigh in get_orth_neighbours(s))
             )
-
-
-
 
     # ------------------------------------------------------------------
     # Adjacent cells cannot share the same t unless connected by a t-arc
@@ -165,11 +150,8 @@ while True:
             if s < nbh:
                 for t in T:
                     m.addConstr(
-                        X[s, t] + X[nbh, t]
-                        <=
-                        1 + F[(s, nbh), t] + F[(nbh, s), t]
+                        X[s, t] + X[nbh, t] <= 1 + F[(s, nbh), t] + F[(nbh, s), t]
                     )
-
 
     # ------------------------------------------------------------------
     # Seed squares: all incident arcs must match the given value
@@ -180,33 +162,27 @@ while True:
             value = grid[i][j]
             m.addConstr(X[s, value] == 1)
 
-
-
     # ------------------------------------------------------------------
     # Flow balance: in + head = out + tail (per node, per t)
     # ------------------------------------------------------------------
     for s in S:
         for t in T:
             m.addConstr(
-                quicksum(F[(neigh, s), t] for neigh in get_orth_neighbours(s))
-                + H[s, t]
-                ==
-                quicksum(F[(s, neigh), t] for neigh in get_orth_neighbours(s))
+                quicksum(F[(neigh, s), t] for neigh in get_orth_neighbours(s)) + H[s, t]
+                == quicksum(F[(s, neigh), t] for neigh in get_orth_neighbours(s))
                 + E[s, t]
             )
-
 
     # ------------------------------------------------------------------
     # MTZ exact-step constraints for arcs chosen with t >= 3
     # ------------------------------------------------------------------
     for s in S:
         for neigh in get_orth_neighbours(s):
-            y = quicksum(F[(s, neigh), t] for t in T if t >= 3)  
+            y = quicksum(F[(s, neigh), t] for t in T if t >= 3)
 
             m.addConstr(M[neigh] >= M[s] + 1 - (bigM + 1) * (1 - y))
 
-            m.addConstr(M[neigh] <= M[s] + 1 + (bigM -1)* (1 - y))
-
+            m.addConstr(M[neigh] <= M[s] + 1 + (bigM - 1) * (1 - y))
 
     m.optimize()
     if m.Status == GRB.OPTIMAL:
@@ -219,9 +195,11 @@ print("Constraints", m.NumConstrs)
 print("Variables", m.NumVars)
 
 
-
 def plot_flow_matplotlib_colored_by_cell_label(
-    m, F, grid, T,
+    m,
+    F,
+    grid,
+    T,
     title="Flow Formulation Solution",
     tol=0.5,
     arrow_shrinkA=14,
@@ -289,7 +267,7 @@ def plot_flow_matplotlib_colored_by_cell_label(
             scores = {}
             for t in T_list:
                 outd = sum(F[((s, neigh), t)].X for neigh in get_orth_neighbours(s))
-                ind  = sum(F[((neigh, s), t)].X for neigh in get_orth_neighbours(s))
+                ind = sum(F[((neigh, s), t)].X for neigh in get_orth_neighbours(s))
                 scores[t] = outd + ind
             best_t = max(T_list, key=lambda tt: scores[tt])
             cell_label[s] = best_t if scores[best_t] > tol else None
@@ -325,10 +303,12 @@ def plot_flow_matplotlib_colored_by_cell_label(
             if t_s is not None:
                 ax.add_patch(
                     patches.Rectangle(
-                        (x, y), 1, 1,
+                        (x, y),
+                        1,
+                        1,
                         facecolor=t_color[t_s],
                         edgecolor="none",
-                        alpha=0.25
+                        alpha=0.25,
                     )
                 )
 
@@ -338,7 +318,13 @@ def plot_flow_matplotlib_colored_by_cell_label(
 
             if (i, j) in circle_set:
                 ax.add_patch(
-                    patches.Circle((x + 0.5, y + 0.5), 0.40, fill=False, linewidth=2, edgecolor="black")
+                    patches.Circle(
+                        (x + 0.5, y + 0.5),
+                        0.40,
+                        fill=False,
+                        linewidth=2,
+                        edgecolor="black",
+                    )
                 )
 
             # Given marker
@@ -348,11 +334,14 @@ def plot_flow_matplotlib_colored_by_cell_label(
             # Single number per cell
             if t_s is not None:
                 ax.text(
-                    x + 0.5, y + 0.55, str(t_s),
-                    ha="center", va="center",
+                    x + 0.5,
+                    y + 0.55,
+                    str(t_s),
+                    ha="center",
+                    va="center",
                     fontsize=14,
                     fontweight="bold",
-                    color="black"
+                    color="black",
                 )
 
     # --- draw arrows (pure flow, no numbers) ---
@@ -398,5 +387,5 @@ def plot_flow_matplotlib_colored_by_cell_label(
     ax.set_title(title)
     plt.show()
 
-plot_flow_matplotlib_colored_by_cell_label(
-    m, F, grid, T)
+
+plot_flow_matplotlib_colored_by_cell_label(m, F, grid, T)
