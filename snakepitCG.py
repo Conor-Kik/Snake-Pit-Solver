@@ -2,23 +2,15 @@ from gurobipy import *
 from problems import get_problem
 import time
 
-FIND_MAX_LENGTH = False  # Set true for looped exploration of max feasible length
-
-STARTING_MAX = 10  # Starting max feasible length
-
-PROBLEM = 9
+TRIALS = 1
+PROBLEM = 1
 data = get_problem(PROBLEM)
 
 grid = data.grid
 circle_squares = data.circle_squares
 x_squares = data.x_squares
 
-if FIND_MAX_LENGTH:
-    values = [cell for row in grid for cell in row if cell is not None]
-    max_length = max(values) if values else 9
-    max_length = max(max_length, STARTING_MAX)
-else:
-    max_length = max(data.T)
+
 
 
 def get_orth_neighbours(pos):
@@ -156,81 +148,80 @@ def plot_board_matplotlib(
     return fig, ax
 
 
-start_t = time.time()
-
 # CG approach
-start_t = time.time()
+start_time = time.time()
 
-while True:
+T = data.T
+Cols = set()
+Seed = {2: {(s, ss) for s in S for ss in get_orth_neighbours(s) if ss > s}}
+
+avg_time = 0
+for t in T:
+    for c in Seed[t]:
+        if (
+            c[0] not in x_squares
+            and c[-1] not in x_squares
+            and all(grid[s[0]][s[1]] in (None, t) for s in c)
+            and not any(
+                grid[ss[0]][ss[1]] == t
+                for s in c
+                for ss in get_orth_neighbours(s)
+                if ss not in c
+            )
+        ):
+            Cols.add(c)
+
+    print(t, len(Seed[t]), len(Cols))
+
+    if len(Seed[t]) == 0 or t + 1 not in T:
+        break
+
+    Seed[t + 1] = set()
+    for c in Seed[t]:
+        if any(grid[s[0]][s[1]] == t for s in c):
+            continue
+        if c[0] not in circle_squares:
+            for s in get_orth_neighbours(c[0]):
+                if s in c:
+                    continue
+                if any(s in get_orth_neighbours(ss) for ss in c[1:]):
+                    continue
+                if grid[s[0]][s[1]] and grid[s[0]][s[1]] <= t:
+                    continue
+                if s < c[-1]:
+                    Seed[t + 1].add((s,) + c)
+                else:
+                    Seed[t + 1].add(tuple(reversed(c)) + (s,))
+        if c[-1] not in circle_squares:
+            for s in get_orth_neighbours(c[-1]):
+                if s in c:
+                    continue
+                if any(s in get_orth_neighbours(ss) for ss in c[:-1]):
+                    continue
+                if grid[s[0]][s[1]] and grid[s[0]][s[1]] <= t:
+                    continue
+                if s > c[0]:
+                    Seed[t + 1].add(c + (s,))
+                else:
+                    Seed[t + 1].add((s,) + tuple(reversed(c)))
+
+end_time = time.time()
+col_gen_time = end_time-start_time
+avg_lazy = 0
+
+for seed in range(TRIALS):
     m = Model()
-    m.Params.LazyConstraints = 1
-    print(f"Trying with max length of {max_length}")
-    T = range(2, max_length + 1)
-
-    Seed = {2: {(s, ss) for s in S for ss in get_orth_neighbours(s) if ss > s}}
-    Cols = set()
-
-    for t in T:
-        for c in Seed[t]:
-            if (
-                c[0] not in x_squares
-                and c[-1] not in x_squares
-                and all(grid[s[0]][s[1]] in (None, t) for s in c)
-                and not any(
-                    grid[ss[0]][ss[1]] == t
-                    for s in c
-                    for ss in get_orth_neighbours(s)
-                    if ss not in c
-                )
-            ):
-                Cols.add(c)
-
-        print(t, len(Seed[t]), len(Cols))
-
-        if len(Seed[t]) == 0 or t + 1 not in T:
-            break
-
-        Seed[t + 1] = set()
-        for c in Seed[t]:
-            if any(grid[s[0]][s[1]] == t for s in c):
-                continue
-            if c[0] not in circle_squares:
-                for s in get_orth_neighbours(c[0]):
-                    if s in c:
-                        continue
-                    if any(s in get_orth_neighbours(ss) for ss in c[1:]):
-                        continue
-                    if grid[s[0]][s[1]] and grid[s[0]][s[1]] <= t:
-                        continue
-                    if s < c[-1]:
-                        Seed[t + 1].add((s,) + c)
-                    else:
-                        Seed[t + 1].add(tuple(reversed(c)) + (s,))
-            if c[-1] not in circle_squares:
-                for s in get_orth_neighbours(c[-1]):
-                    if s in c:
-                        continue
-                    if any(s in get_orth_neighbours(ss) for ss in c[:-1]):
-                        continue
-                    if grid[s[0]][s[1]] and grid[s[0]][s[1]] <= t:
-                        continue
-                    if s > c[0]:
-                        Seed[t + 1].add(c + (s,))
-                    else:
-                        Seed[t + 1].add((s,) + tuple(reversed(c)))
+    lazy_count = 0 
 
     Z = {p: m.addVar(vtype=GRB.BINARY) for p in Cols}
 
-    # If no columns, model is trivially infeasible; bump max_length and continue
-    if not Z:
-        max_length += 1
-        continue
+
 
     Cover = {s: m.addConstr(quicksum(Z[p] for p in Z if s in p) == 1) for s in S}
 
     def Callback(model, where):
         if where == GRB.Callback.MIPSOL:
-
+            global lazy_count
             ZV = model.cbGetSolution(Z)
             sol = {}
             pSet = set()
@@ -245,6 +236,7 @@ while True:
                 for s in p:
                     for ss in get_orth_neighbours(s):
                         if ss > s and ss not in p and sol.get(ss) == t:
+                            lazy_count += 1
                             model.cbLazy(
                                 quicksum(
                                     Z[pp]
@@ -258,25 +250,29 @@ while True:
                                 )
                                 <= 1
                             )
-
+    m.Params.LazyConstraints = 1
+    m.Params.Seed = seed
+    m.Params.Threads = 8
     m.optimize(Callback)
+    avg_lazy += lazy_count
+    avg_time += m.Runtime
+    print("Seed", seed)
+    print("Lazy Constraints", lazy_count)
+    print()
 
-    if m.Status == GRB.OPTIMAL:
-        break
-    else:
-        max_length += 1
-
+print(f"Average Solve runtime {(avg_time/TRIALS):.2f} with {TRIALS} Trials")
+print(f"Average total runtime {col_gen_time + (avg_time/TRIALS):.2f} with {TRIALS} Trials")
+print("Average Lazy Constraints", round(avg_lazy/TRIALS, 2))
 print("Constraints", m.NumConstrs)
 print("Variables", m.NumVars)
 
-end_t = time.time()
-print(f"Total time : {end_t-start_t:.2f}")
 if m.SolCount > 0:
     sol = {}
     for p in Z:
         if round(Z[p].x) == 1:
             for s in p:
                 sol[s] = len(p)
-    plot_board_matplotlib(
-        sol, grid, circle_squares, blocked_squares=x_squares, T=T, title="Solution"
-    )
+    plot_board_matplotlib(sol, grid, circle_squares, blocked_squares=x_squares, T=T, title="Solution")
+
+
+

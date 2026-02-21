@@ -1,25 +1,17 @@
 from gurobipy import *
 from problems import get_problem
 
-FIND_MAX_LENGTH = False  # Set true for looped exploration of max feasible length
-
-STARTING_MAX = 10  # Starting max feasible length
 
 PROBLEM = 2
+
+TRIALS = 1
 data = get_problem(PROBLEM)
 
 grid = data.grid
 circle_squares = data.circle_squares
 x_squares = data.x_squares
 
-
-if FIND_MAX_LENGTH:
-    values = [cell for row in grid for cell in row if cell is not None]
-    max_length = max(values) if values else 9
-    max_length = max(max_length, STARTING_MAX)
-else:
-    max_length = max(data.T)
-
+T = data.T
 
 def get_orth_neighbours(pos):
     i, j = pos
@@ -40,9 +32,10 @@ n = len(grid)
 N = range(n)
 S = [(i, j) for i in N for j in N]
 
-while True:
-    T = range(2, max_length + 1)
-    print(f"Trying with max length of {max_length}")
+avg_lazy = 0 
+avg_time = 0
+for seed in range(TRIALS):
+    lazy_count = 0 
     m = Model()
     X = {(s, t): m.addVar(vtype=GRB.BINARY) for s in S for t in T}
 
@@ -68,7 +61,7 @@ while True:
             else:
                 b = 1
 
-            # Force blocked squares to have two neighbours
+            # Force x squares to have two neighbours
             m.addConstr(
                 b * X[s, t] <= quicksum(X[ss, t] for ss in get_orth_neighbours(s))
             )
@@ -117,6 +110,7 @@ while True:
 
     def Callback(model, where):
         if where == GRB.Callback.MIPSOL:
+            global lazy_count
             XV = model.cbGetSolution(X)
             s_map = {}
             for i in N:
@@ -138,15 +132,18 @@ while True:
                         if sum((nb in path) for nb in get_orth_neighbours(s)) == 1
                     )
                     if ends <= 1:
+                        lazy_count += 1
                         model.cbLazy(quicksum(X[s, t] for s in path) <= len(path) - 1)
                     if len(path) == t:
                         continue
                     # Cut if path is too long
                     if len(path) > t:
+                        lazy_count += 1
                         model.cbLazy(quicksum(X[ss, t] for ss in path) <= len(path) - 1)
 
                     # Force path to grow by one if too short
                     if len(path) < t:
+                        lazy_count += 1
                         model.cbLazy(
                             quicksum(
                                 X[sss, t]
@@ -156,34 +153,25 @@ while True:
                             )
                             >= 1 - len(path) + quicksum(X[ss, t] for ss in path)
                         )
-
+    m.Params.Threads = 8
     m.Params.LazyConstraints = 1
+    m.Params.Seed = seed
+
     m.optimize(Callback)
-    if m.Status == GRB.OPTIMAL:
-        break
-    else:
-        max_length += 1
+    avg_time += m.Runtime
+    avg_lazy += lazy_count
+    print("Seed", seed)
+    print("Lazy Constraints", lazy_count)
+    print()
+
+
+print(f"Average runtime {avg_time/TRIALS:.2f} with {TRIALS} Trials")
+print("Average Lazy Constraints Added", round(avg_lazy/TRIALS, 2))
 print("Constraints", m.NumConstrs)
 print("Variables", m.NumVars)
 
 
-def draw_faint_x(ax, x, y, size=0.20, lw=1.2, alpha=0.35):
-    """
-    Draw a faint centered X inside the unit square at (x, y).
-    """
-    cx, cy = x + 0.5, y + 0.5
-    s = size
-    ax.plot(
-        [cx - s, cx + s], [cy - s, cy + s], color="black", linewidth=lw, alpha=alpha
-    )
-    ax.plot(
-        [cx - s, cx + s], [cy + s, cy - s], color="black", linewidth=lw, alpha=alpha
-    )
-
-
-def plot_board_matplotlib(
-    m, X, grid, circle_squares, blocked_squares=None, T=None, title=None
-):
+def plot_board_matplotlib():
     import matplotlib.pyplot as plt
     import matplotlib.patches as patches
     import matplotlib.colors as mcolors
@@ -193,7 +181,7 @@ def plot_board_matplotlib(
 
     rows, cols = len(grid), len(grid[0])
     circle_set = set(circle_squares)
-    blocked_set = set(blocked_squares or [])
+    blocked_set = set(x_squares or [])
 
     if m.SolCount == 0:
         print("No solution in model.")
@@ -301,10 +289,7 @@ def plot_board_matplotlib(
                 fontweight="bold",
                 color="black",
             )
-
-    if title:
-        ax.set_title(title)
     plt.show()
 
 
-plot_board_matplotlib(m, X, grid, circle_squares, blocked_squares=x_squares, T=T)
+plot_board_matplotlib()

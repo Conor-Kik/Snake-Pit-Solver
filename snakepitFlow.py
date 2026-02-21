@@ -1,24 +1,13 @@
 from gurobipy import *
 from problems import get_problem
 
-
-FIND_MAX_LENGTH = False  # Set true for looped exploration of max feasible length
-
-STARTING_MAX = 10  # Starting max feasible length
-
-PROBLEM = 4
+TRIALS = 1
+PROBLEM =1
 data = get_problem(PROBLEM)
 
 grid = data.grid
 circle_squares = data.circle_squares
 x_squares = data.x_squares
-
-if FIND_MAX_LENGTH:
-    values = [cell for row in grid for cell in row if cell is not None]
-    max_length = max(values) if values else 9
-    max_length = max(max_length, STARTING_MAX)
-else:
-    max_length = max(data.T)
 
 
 def get_orth_neighbours(pos):
@@ -43,19 +32,21 @@ S = [(i, j) for i in N for j in N]
 
 A = [(pos, nbr) for pos in S for nbr in get_orth_neighbours(pos)]
 
-while True:
-    T = range(2, max_length + 1)
-    print(f"Trying with max length of {max_length}")
-    bigM = max(T) - 1
+avg_time = 0
+T = data.T
+bigM = max(T) - 1
+
+
+for seed in range(TRIALS):
     m = Model()
 
     # Flow on directed orthogonal arcs, indexed by time/value t
     F = {(a, t): m.addVar(vtype=GRB.BINARY) for a in A for t in T}
 
-    # MTZ order variable (used only for t >= 3)
+    # MTZ order variable 
     M = {s: m.addVar(vtype=GRB.INTEGER, lb=0, ub=bigM) for s in S}
 
-    # Cell membership: X[s,t] = 1 if cell s is of type t
+    # Cell membership: X[s,t] = 1 if cell s is of type l
     X = {(s, t): m.addVar(vtype=GRB.BINARY) for s in S for t in T}
 
     # Head and tail indicators
@@ -69,67 +60,52 @@ while True:
         m.addConstr(quicksum(H[s, t] for t in T) + quicksum(E[s, t] for t in T) <= 1)
 
         for t in T:
-            if t >= 2:
-                # tail of length t -> label at least (t-1)
-                m.addConstr(M[s] >= (t - 1) * E[s, t])
+            # tail of length t -> label at least (t-1)
+            m.addConstr(M[s] >= (t - 1) * E[s, t])
 
-                # tail of length t -> label at most (t-1); otherwise free up to bigM
-                m.addConstr(M[s] <= (t - 1) + (bigM - 1) * (1 - E[s, t]))
+            # tail of length t -> label at most (t-1); otherwise free up to bigM
+            m.addConstr(M[s] <= (t - 1) + (bigM - 1) * (1 - E[s, t]))
 
-                # head -> M[s] = 0
-                m.addConstr(M[s] <= bigM * (1 - H[s, t]))
-
-    # ------------------------------------------------------------------
-    # Force 2-cycles for t = 2 (edge pairing)
-    # ------------------------------------------------------------------
-    for s in S:
-        for neigh in get_orth_neighbours(s):
-            # A t=2 arc must be paired in the opposite direction
-            m.addConstr(F[(s, neigh), 2] == F[(neigh, s), 2])
+            # head -> M[s] = 0
+            m.addConstr(M[s] <= bigM * (1 - H[s, t]))
 
     # ------------------------------------------------------------------
-    # X-squares cannot be heads or tails and 2's can't be on X squares
+    # X-squares cannot be heads or tails can't be on X squares
     # ------------------------------------------------------------------
     for s in x_squares:
         m.addConstr(quicksum(H[s, t] for t in T) + quicksum(E[s, t] for t in T) == 0)
-        m.addConstr(X[s, 2] == 0)
 
     # ------------------------------------------------------------------
-    # Circle squares: endpoint for t >= 3 unless used by t = 2
+    # Circle squares are endpoint
     # ------------------------------------------------------------------
     for c in circle_squares:
         m.addConstr(
-            quicksum(H[c, t] + E[c, t] for t in T if t >= 3)
+            quicksum(H[c, t] + E[c, t] for t in T)
             == 1
-            - X[
-                c, 2
-            ]  # - quicksum(F[(c, neigh), 2] for neigh in get_orth_neighbours(c))
         )
     # ------------------------------------------------------------------
-    # 6) Degree caps across ALL t + coverage constraint
+    # Degree caps across ALL t 
     # ------------------------------------------------------------------
-    for s in S:
-        # At most one outgoing arc across all t
-        m.addConstr(
-            quicksum(F[(s, neigh), t] for neigh in get_orth_neighbours(s) for t in T)
-            <= 1
-        )
 
-        # At most one incoming arc across all t
-        m.addConstr(
-            quicksum(F[(neigh, s), t] for neigh in get_orth_neighbours(s) for t in T)
-            <= 1
-        )
 
     # ------------------------------------------------------------------
     # Define X[s,t] from head/tail/incidence of flow
     # ------------------------------------------------------------------
     for s in S:
         m.addConstr(quicksum(X[s, t] for t in T) == 1)
+        if s in circle_squares or t == 2:
+            k = 1
+        else:
+            k = 2
+
+        if s in x_squares:
+            b = 2
+        else:
+            b = 1
 
         for t in T:
             m.addConstr(
-                2 * X[s, t]
+                k * X[s, t]
                 >= quicksum(
                     F[(s, neigh), t] + F[(neigh, s), t]
                     for neigh in get_orth_neighbours(s)
@@ -137,7 +113,7 @@ while True:
             )
 
             m.addConstr(
-                X[s, t]
+                b*X[s, t]
                 <= quicksum(F[(neigh, s), t] for neigh in get_orth_neighbours(s))
                 + quicksum(F[(s, neigh), t] for neigh in get_orth_neighbours(s))
             )
@@ -174,23 +150,25 @@ while True:
             )
 
     # ------------------------------------------------------------------
-    # MTZ exact-step constraints for arcs chosen with t >= 3
+    # MTZ exact-step constraints for arcs chosen
     # ------------------------------------------------------------------
     for s in S:
         for neigh in get_orth_neighbours(s):
-            y = quicksum(F[(s, neigh), t] for t in T if t >= 3)
+            y = quicksum(F[(s, neigh), t] for t in T)
 
             m.addConstr(M[neigh] >= M[s] + 1 - (bigM + 1) * (1 - y))
 
             m.addConstr(M[neigh] <= M[s] + 1 + (bigM - 1) * (1 - y))
 
+    m.Params.Threads = 8
+    m.Params.Seed = seed
+    
+
     m.optimize()
-    if m.Status == GRB.OPTIMAL:
-        break
-    else:
-        max_length += 1
+    avg_time += m.Runtime
 
 
+print(f"Average runtime {avg_time/TRIALS:.2f} with {TRIALS} Trials")
 print("Constraints", m.NumConstrs)
 print("Variables", m.NumVars)
 
