@@ -1,8 +1,8 @@
 from gurobipy import *
 from problems import get_problem
 
-TRIALS = 1
-PROBLEM =1
+TRIALS = 10
+PROBLEM =5
 data = get_problem(PROBLEM)
 
 grid = data.grid
@@ -86,7 +86,9 @@ for seed in range(TRIALS):
     # ------------------------------------------------------------------
     # Degree caps across ALL t 
     # ------------------------------------------------------------------
-
+    for s in S:
+        m.addConstr(quicksum(F[(s, neigh), t] for neigh in get_orth_neighbours(s) for t in T) <= 1)
+        m.addConstr(quicksum(F[(neigh, s), t] for neigh in get_orth_neighbours(s) for t in T) <= 1)
 
     # ------------------------------------------------------------------
     # Define X[s,t] from head/tail/incidence of flow
