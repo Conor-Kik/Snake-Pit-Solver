@@ -200,7 +200,7 @@ PROBLEMS = {
 
         x_squares=[]
     ),
-    10: ProblemData(
+    8: ProblemData(
         T=range(2, 20),
         grid = [
             [None, None, None, None, None, None, None, None, None, None, None, None], 
@@ -234,7 +234,7 @@ PROBLEMS = {
 
         x_squares = []
     ),
-    9 : ProblemData(
+    10 : ProblemData(
 
         T=range(2, 10),
         grid=[[None]*12 for _ in range(12)],
