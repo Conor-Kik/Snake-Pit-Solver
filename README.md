@@ -7,14 +7,6 @@ The Snake Pit puzzle is a region-division logic puzzle in which a grid must be p
 Puzzle source and rules:
 https://www.gmpuzzles.com/blog/category/regiondivision/snake-pit/
 
-## Contents
-
-The repository includes:
-
-- Multiple integer programming formulations of the puzzle
-- Implementations compatible with Gurobi 12.0.1
-- Experimental instances used for computational comparison
-
 ## Requirements
 
 - Python (3.x recommended)
