@@ -27,9 +27,6 @@ Supporting files:
 - `problems.py`  
   Defines the puzzle instances.
 
-- `problems/`  
-  Contains PDF versions of the Snake Pit puzzle instances for reference and classroom use.
-
 - `board_plotting.py`  
   Contains plotting utilities for displaying puzzle grids and solutions.
 
