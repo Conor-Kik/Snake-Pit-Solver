@@ -19,7 +19,7 @@ The repository includes three formulations:
 - `snakepitFlow.py`  
   Flow-based formulation using directed arcs and ordering variables.
 
-- `snakepitCG.py`  
+- `snakepitPathGen.py`  
   Path-generation/set-partitioning formulation using pre-generated snake paths and lazy constraints for equal-length adjacency.
 
 Supporting files:
@@ -49,4 +49,4 @@ For example:
 ```bash
 python snakepitLazy.py
 python snakepitFlow.py
-python snakepitCG.py
+python snakepitPathGen.py
