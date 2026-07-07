@@ -2,8 +2,8 @@ from gurobipy import *
 from problems import get_problem
 from board_plotting import plot_board_flow
 
-TRIALS = 10
-PROBLEM = 5
+TRIALS = 1
+PROBLEM = 1
 data = get_problem(PROBLEM)
 
 grid = data.grid
@@ -24,7 +24,6 @@ def get_orth_neighbours(pos):
         )
         if 0 <= ni < rows and 0 <= nj < cols
     ]
-
 
 n = len(grid)
 N = range(n)
@@ -171,7 +170,6 @@ for seed in range(TRIALS):
     avg_time += m.Runtime
 
     runtime = round(m.Runtime, 2)
-    
     print("----------------------------------")
     print(f"Seed {seed}: {runtime}s")
     print(f"Average so far: {avg_time/(seed + 1):.2f}")

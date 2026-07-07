@@ -3,8 +3,8 @@ from problems import get_problem
 import time
 from board_plotting import plot_board_path_gen
 
-TRIALS = 5
-PROBLEM = 3
+TRIALS = 1
+PROBLEM = 1
 data = get_problem(PROBLEM)
 
 grid = data.grid

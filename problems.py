@@ -11,7 +11,7 @@ class ProblemData:
 
 PROBLEMS = {
 
-    1: ProblemData(
+    5: ProblemData(
         T=range(2, 7),
         grid=[
             [None, None, 2,   None, 2,   4],
@@ -29,7 +29,7 @@ PROBLEMS = {
         x_squares=[],
     ),
 
-    2: ProblemData(
+    6: ProblemData(
         T=range(2, 14),
         grid=[[None]*6 for _ in range(6)],
         circle_squares=[
@@ -111,7 +111,7 @@ PROBLEMS = {
         ],
     ),
 
-    5: ProblemData(
+    1: ProblemData(
         T=range(2, 17),
         grid=[
             [None, None, None, 16, None, 8, None, 16],
@@ -132,7 +132,7 @@ PROBLEMS = {
         x_squares=[],
     ),
 
-    6: ProblemData(
+    2: ProblemData(
         T=range(2, 10),
         grid=[[None]*12 for _ in range(12)],
         circle_squares=[

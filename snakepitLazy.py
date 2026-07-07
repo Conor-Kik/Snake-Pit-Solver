@@ -2,8 +2,7 @@ from gurobipy import *
 from problems import get_problem
 from board_plotting import plot_board_lazy
 
-PROBLEM = 6
-
+PROBLEM = 1
 TRIALS = 1
 
 data = get_problem(PROBLEM)
@@ -159,7 +158,7 @@ for seed in range(TRIALS):
     #m.Params.Threads = 8
     m.Params.LazyConstraints = 1
     m.Params.Seed = seed
-
+    m.Params.TimeLimit = 600
     m.optimize(Callback)
     avg_time += m.Runtime
     avg_lazy += lazy_count
