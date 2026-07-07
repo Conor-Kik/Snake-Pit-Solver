@@ -3,8 +3,8 @@ from problems import get_problem
 import time
 from board_plotting import plot_board_path_gen
 
-TRIALS = 10
-PROBLEM = 2
+TRIALS = 5
+PROBLEM = 3
 data = get_problem(PROBLEM)
 
 grid = data.grid
@@ -123,6 +123,7 @@ for seed in range(TRIALS):
         
     def Callback(model,where):
         if where==GRB.Callback.MIPSOL:
+            global lazy_count
             sol = {}
             Snakes = set()
             ZV = model.cbGetSolution(Z)
@@ -136,6 +137,7 @@ for seed in range(TRIALS):
                 for s1 in p:
                     for s2 in Neigh[s1]:
                         if s2>s1 and sol[s1]==sol[s2] and s2 not in p:
+                            lazy_count += 1
                             model.cbLazy(
                                 quicksum(
                                     Z[pp] for pp in PSet[s1]^PSet[s2] if len(pp)==len(p))<=1)
