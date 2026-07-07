@@ -2,9 +2,10 @@ from gurobipy import *
 from problems import get_problem
 from board_plotting import plot_board_lazy
 
-PROBLEM = 5
+PROBLEM = 6
 
-TRIALS = 10
+TRIALS = 1
+
 data = get_problem(PROBLEM)
 
 grid = data.grid
@@ -141,20 +142,21 @@ for seed in range(TRIALS):
                     if len(path) > t:
                         lazy_count += 1
                         model.cbLazy(quicksum(X[ss, t] for ss in path) <= len(path) - 1)
-
                     # Force path to grow by one if too short
                     if len(path) < t:
+                        boundary = {
+                            sss
+                            for ss in path
+                            for sss in get_orth_neighbours(ss)
+                            if sss not in path
+                        }
+
                         lazy_count += 1
                         model.cbLazy(
-                            quicksum(
-                                X[sss, t]
-                                for ss in path
-                                for sss in get_orth_neighbours(ss)
-                                if sss not in path
-                            )
+                            quicksum(X[sss, t] for sss in boundary)
                             >= 1 - len(path) + quicksum(X[ss, t] for ss in path)
                         )
-    m.Params.Threads = 8
+    #m.Params.Threads = 8
     m.Params.LazyConstraints = 1
     m.Params.Seed = seed
 
